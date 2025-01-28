@@ -20,7 +20,6 @@ module Main
 
 import EncodingUtils (initEncoding)
 
-import Data.Semigroup ((<>))
 import Options.Applicative
 
 import PrintUtils

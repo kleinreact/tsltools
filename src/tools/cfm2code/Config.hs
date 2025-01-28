@@ -21,7 +21,6 @@ module Config
 
 import PrintUtils (Color(..), ColorIntensity(..), cPutErr, cPutErrLn)
 
-import Data.Semigroup ((<>))
 import Options.Applicative
 
 import TSL (CodeTarget(..))

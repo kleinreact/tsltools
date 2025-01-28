@@ -159,7 +159,7 @@ generateCore context tsl = do
     genCore' minimalAssumptions (q:qr) = do
       logHigh context $ "Check core:\n" ++ toTSL q ++ "\n"
       out <-
-        testCoreQuery context (minimalAssumptions (fromList $guarantees q)) q
+        testCoreQuery context (minimalAssumptions (fromList $ guarantees q)) q
       case out of
         Nothing ->
           genCore'

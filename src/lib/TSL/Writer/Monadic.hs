@@ -43,6 +43,8 @@ import Data.Maybe (mapMaybe)
 
 import Data.Set (fromList, toList)
 
+import qualified Data.List.NonEmpty as NonEmpty (head)
+
 import qualified TSL.Aiger as Circuit (Wire(..), inputs, outputs)
 
 -----------------------------------------------------------------------------
@@ -115,61 +117,67 @@ implement mName fName cfm@CFM{..} =
           prPTypes (map (wireType . inputWire) directInputs) ++
           " ="
       , "  Input"
-      , if null directInputs then "" else
-          "    { " ++ inputDecl (head directInputs) ++
-          concatMap (("\n    , " ++) . inputDecl) (tail directInputs) ++
-          "\n    }\n"
+      , case directInputs of
+          []   -> ""
+          x:xr -> "    { " ++ inputDecl x
+               ++ concatMap (("\n    , " ++) . inputDecl) xr
+               ++ "\n    }\n"
       , replicate 77 '-'
       , ""
       , "data Output " ++
         if null outputs then "=" else
           "signal " ++
-          prPTypes (map (wireType . fst . head . outputSwitch) outputs) ++
+          prPTypes (map (wireType . fst . NonEmpty.head . outputSwitch) outputs) ++
           " ="
       , "  Output"
-      , if null outputs then "" else
-          "    { " ++ outputDecl (head outputs) ++
-          concatMap (("\n    , " ++) . outputDecl) (tail outputs) ++
-          "\n    }\n"
+      , case outputs of
+          []   -> ""
+          x:xr -> "    { " ++ outputDecl x
+               ++ concatMap (("\n    , " ++) . outputDecl) xr
+               ++ "\n    }\n"
       , replicate 77 '-'
       , ""
       , "data Functions " ++
         if null ts then "=" else
           prPTypes types ++ " ="
       , "  Functions"
-      , if null ts then "" else
-          "    { " ++ functionDecl (head ts) ++
-          concatMap (("\n    , " ++) . functionDecl) (tail ts) ++
-          "\n    }\n"
+      , case ts of
+          []   -> ""
+          x:xr -> "    { " ++ functionDecl x
+               ++ concatMap (("\n    , " ++) . functionDecl) xr
+               ++ "\n    }\n"
       , replicate 77 '-'
       , ""
       , "data InitialState " ++
         if null outputs then "=" else
-          prPTypes (map (wireType . fst . head . outputSwitch) outputs) ++
+          prPTypes (map (wireType . fst . NonEmpty.head . outputSwitch) outputs) ++
           " ="
       , "  InitialState"
-      , if null outputs then "" else
-          "    { " ++ stateDecl (head outputs) ++
-          concatMap (("\n    , " ++) . stateDecl) (tail outputs) ++
-          "\n    }\n"
+      , case outputs of
+          []   -> ""
+          x:xr -> "    { " ++ stateDecl x
+               ++ concatMap (("\n    , " ++) . stateDecl) xr
+               ++ "\n    }\n"
       , replicate 77 '-'
       , ""
       , "data ControlIn signal ="
       , "  ControlIn"
-      , if null is then "" else
-          "    { controlIn" ++ show (head is) ++ " :: signal Bool\n" ++
-          concatMap ((++ " :: signal Bool\n") .
-                     ("    , controlIn" ++) . show) (tail is) ++
-          "    }\n"
+      , case is of
+          []   -> ""
+          x:xr -> "    { controlIn" ++ show x ++ " :: signal Bool\n"
+               ++ concatMap ((++ " :: signal Bool\n") .
+                             ("    , controlIn" ++) . show) xr
+               ++ "    }\n"
       , replicate 77 '-'
       , ""
       , "data ControlOut signal ="
       , "  ControlOut"
-      , if null is then "" else
-          "    { controlOut" ++ show (head os) ++ " :: signal Bool\n" ++
-          concatMap ((++ " :: signal Bool\n") .
-                     ("    , controlOut" ++) . show) (tail os) ++
-          "    }\n"
+      , case os of
+          []   -> ""
+          x:xr -> "    { controlOut" ++ show x ++ " :: signal Bool\n"
+               ++ concatMap ((++ " :: signal Bool\n") .
+                             ("    , controlOut" ++) . show) xr
+               ++ "    }\n"
       , replicate 77 '-'
       , ""
       , fName
@@ -179,13 +187,13 @@ implement mName fName cfm@CFM{..} =
         if null ts then "" else " " ++ prPTypes types
       , "  -> InitialState" ++
         if null outputs then "" else " " ++
-          prPTypes (map (wireType . fst . head . outputSwitch) outputs)
+          prPTypes (map (wireType . fst . NonEmpty.head . outputSwitch) outputs)
       , "  -> Input" ++
         if null directInputs then "" else " signal " ++
           prPTypes (map (wireType . inputWire) directInputs)
       , "  -> m " ++
         if null outputs then "Output" else "(Output signal " ++
-          prPTypes (map (wireType . fst . head . outputSwitch) outputs) ++
+          prPTypes (map (wireType . fst . NonEmpty.head . outputSwitch) outputs) ++
           ")"
       , ""
       , fName ++ " cell Functions{..} InitialState{..} Input{..} = do"
@@ -196,25 +204,24 @@ implement mName fName cfm@CFM{..} =
       , "    ControlOut{..} <-"
       , "      controlCircuit cell"
       , "        ControlIn"
-      , if null is then "" else
-          "          { controlIn0 = " ++
-          prWire cfm (controlInputWire $ head is) ++
-          concatMap
-            (\(n,x) -> "\n          , controlIn" ++ show n ++
-                      " = " ++ prWire cfm (controlInputWire x))
-            (zip [1 :: Int,2..] $ tail is) ++
-          "\n          }\n"
+      , case is of
+          []   -> ""
+          x:xr -> "          { controlIn0 = " ++ prWire cfm (controlInputWire x)
+               ++ concatMap
+                    (\(n,x) -> "\n          , controlIn" ++ show n ++
+                              " = " ++ prWire cfm (controlInputWire x))
+                    (zip [1 :: Int,2..] xr)
+               ++ "\n          }\n"
       , if null outputs then "  return" else
           "    let\n" ++ concatMap prSwitch outputs ++ "  return"
       , "    Output"
-      , if null outputs then "" else
-          "      { " ++ outputName (head outputs) ++ " = " ++
-          outputName (head outputs) ++ "Out\n" ++
-          concatMap
-            (\x -> "      , " ++ outputName x ++
-                  " = " ++ outputName x ++ "Out\n")
-            (tail outputs) ++
-          "      }\n"
+      , case outputs of
+          []   -> ""
+          x:xr -> "      { " ++ outputName x ++ " = " ++ outputName x ++ "Out\n"
+               ++ concatMap
+                    (\x -> "      , " ++ outputName x ++
+                          " = " ++ outputName x ++ "Out\n") xr
+               ++ "      }\n"
       , replicate 77 '-'
       , concatMap (prSwitchImpl cfm) outputs
       ]
@@ -235,14 +242,14 @@ implement mName fName cfm@CFM{..} =
 
     outputDecl o =
       outputName o ++ " :: signal "
-      ++ prT (wireType $ fst $ head $ outputSwitch o)
+      ++ prT (wireType $ fst $ NonEmpty.head $ outputSwitch o)
 
     functionDecl f =
       termName f ++ " :: " ++ prChain (termType cfm f)
 
     stateDecl o =
       outputName o ++ " :: "
-      ++ prT (wireType $ fst $ head $ outputSwitch o)
+      ++ prT (wireType $ fst $ NonEmpty.head $ outputSwitch o)
 
     prSwitch o =
       "      " ++ outputName o ++ "Out =\n" ++
@@ -334,12 +341,13 @@ prCircuitImpl Circuit{..} =
           "    let" ++ concatMap ("\n      " ++) ds ++ "\n"
       , "  return"
       , "    ControlOut"
-      , if null os then "" else
-          "      { controlOut0 = " ++ head os ++
-          concatMap
-            (\(i,x) -> "\n      , controlOut" ++ show i ++
-                      " = " ++ x) (zip [1 :: Int,2..] $ tail os) ++
-          "\n     ( }"
+      , case os of
+          []   -> ""
+          x:xr -> "      { controlOut0 = " ++ x
+               ++ concatMap
+                    (\(i,x) -> "\n      , controlOut" ++ show i ++
+                              " = " ++ x) (zip [1 :: Int,2..] xr)
+               ++ "\n     ( }"
       , let
           hasLatches   = not $ null latches
           hasGates     = not $ null gates

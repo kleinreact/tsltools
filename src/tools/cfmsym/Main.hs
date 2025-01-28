@@ -40,7 +40,9 @@ main = do
 
   let
     table = toCSV $ symbolTable m
-    (h:es) = lines table
+    (h, es) = case lines table of
+      [] -> error "empty symbol table"
+      h:es -> (h, es)
 
   header $ dropLast h
   sep $ dropLast h

@@ -77,16 +77,17 @@ insert
   :: String -> Int -> StringMap -> StringMap
 
 insert s i = \case
-  Empty      -> Leaf (s,i)
-  Leaf (e,v)
-    | e == s     -> Leaf (s,i)
-    | otherwise -> case e of
-      []     -> Node (Just v, [(head s, Leaf (tail s,i))])
-      (x:xr) -> case s of
-        []     -> Node (Just i, [(x,Leaf (xr,v))])
-        (y:yr)
-          | x == y     -> Node (Nothing, [(x, insert yr i (Leaf (xr,v)))])
-          | otherwise -> Node (Nothing, [(x, Leaf (xr,v)),(y, Leaf (yr,i))])
+  Empty       -> Leaf (s, i)
+  Leaf (e, v) -> case e of
+    [] -> case s of
+      []   -> Leaf (s, i)
+      y:yr -> Node (Just v, [(y, Leaf (yr, i))])
+    x:xr
+      | e == s    -> Leaf (s, i)
+      | otherwise -> case s of
+          []               -> Node (Just i, [(x, Leaf (xr, v))])
+          y:yr | x == y    -> Node (Nothing, [(x, insert yr i (Leaf (xr,v)))])
+               | otherwise -> Node (Nothing, [(x, Leaf (xr,v)),(y, Leaf (yr,i))])
   Node (v,xs) -> case s of
     []     -> Node (Just i,xs)
     (x:xr) -> Node (v, add x xr i xs)

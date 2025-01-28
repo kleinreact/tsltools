@@ -24,7 +24,9 @@ import TSL.Reader.Data (Specification(..))
 
 import TSL.Expression (Expr(..), Expr'(..))
 
-import Control.Exception (assert)
+import Data.List.NonEmpty (NonEmpty(..), toList)
+
+import qualified Data.List.NonEmpty as NonEmpty (reverse, head)
 
 -----------------------------------------------------------------------------
 
@@ -53,45 +55,42 @@ replaceBinding b =
     }
 
   where
-    rpE x = head $ replaceExpr [x]
+    rpE x = NonEmpty.head $ replaceExpr (x :| [])
 
 -----------------------------------------------------------------------------
 
 replaceExpr
-  :: [Expr Int] -> [Expr Int]
+  :: NonEmpty (Expr Int) -> NonEmpty (Expr Int)
 
 replaceExpr = \case
-  []  -> assert False undefined
-  [e] -> replaceOtherwise [] [] $ checkForFn e
-  xs  -> replaceOtherwise [] [] xs
+  e :| [] -> replaceOtherwise [] [] $ checkForFn e
+  xs      -> replaceOtherwise [] [] xs
+ where
+  replaceOtherwise a b (e :| er) = case expr e of
+    Colon x y -> case expr x of
+      BaseOtherwise ->
+        let c = Expr (BlnNot (orList (srcPos e) b)) (-1) $ srcPos e
+        in NonEmpty.reverse $ (e { expr = Colon c y }) :| a
+      _             -> case er of
+        []   -> e :| []
+        z:zr -> replaceOtherwise (e:a) (x:b) (z :| zr)
+    _         ->
+      let c = Expr (BlnNot (orList (srcPos e) b)) (-1) $ srcPos e
+      in NonEmpty.reverse $ (e { expr = Colon c e }) :| a
 
-  where
-    replaceOtherwise a b = \case
-      []   -> reverse a
-      e:er -> case expr e of
-        Colon x y -> case expr x of
-          BaseOtherwise ->
-            let c = Expr (BlnNot (orList (srcPos e) b)) (-1) $ srcPos e
-            in reverse $ (e { expr = Colon c y }) : a
-          _             ->
-            replaceOtherwise (e:a) (x:b) er
-        _         ->
-          let c = Expr (BlnNot (orList (srcPos e) b)) (-1) $ srcPos e
-          in reverse $ (e { expr = Colon c e }) : a
+  checkForFn e = case expr e of
+    BaseFn x y -> checkFn e x y
+    Colon {}   -> e :| []
+    _          -> e { expr = Colon (Expr BaseOtherwise (-1) $ srcPos e) e } :| []
 
-    checkForFn e = case expr e of
-      BaseFn x y -> checkFn e x y
-      Colon {}   -> [e]
-      _          -> [e { expr = Colon (Expr BaseOtherwise (-1) $ srcPos e) e }]
+  checkFn e x y = case expr x of
+    Colon {} -> x :| toList (checkForFn y)
+    _        -> e :| []
 
-    checkFn e x y = case expr x of
-      Colon {} -> x : checkForFn y
-      _        -> [e]
+  orList p =
+    foldl (fldOr p) (Expr BaseFalse (-1) p)
 
-    orList p =
-      foldl (fldOr p) (Expr BaseFalse (-1) p)
-
-    fldOr p e1 e2 =
-      Expr (BlnOr e1 e2) (-1) p
+  fldOr p e1 e2 =
+    Expr (BlnOr e1 e2) (-1) p
 
 -----------------------------------------------------------------------------

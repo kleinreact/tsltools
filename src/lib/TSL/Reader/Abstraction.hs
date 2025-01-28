@@ -38,7 +38,9 @@ import qualified TSL.Parser.Data as PD (Specification(..))
 
 import Data.Maybe (mapMaybe)
 
-import Control.Monad.State (StateT(..), evalStateT, foldM, get, put)
+import Control.Monad (foldM)
+
+import Control.Monad.State (StateT(..), evalStateT, get, put)
 
 import Control.Exception (assert)
 

@@ -67,6 +67,10 @@ import TSL.Logic
 
 import qualified TSL.Logic as L (outputs)
 
+import Data.List.NonEmpty (NonEmpty(..), (<|))
+
+import qualified Data.List.NonEmpty as NonEmpty (head)
+
 -------------------------------------------------------------------------------
 -- | A 'SystemStrategy' is a circuit with predicate evaluations as
 -- inputs and updates as outputs.
@@ -100,7 +104,7 @@ data EnvironmentSimulation =
     , specification :: Specification
     -- | The history of states that have been passed through as stack, the
     -- topmost element is the current state.
-    , stateStack :: [State]
+    , stateStack :: NonEmpty State
     -- | The trace of updates and predicate evaluation (this trace is the
     -- "trace" that is usually meant in a model checking context)
     , trace :: FiniteTrace String
@@ -153,7 +157,7 @@ step
 
 step sim@EnvironmentSimulation{..} (predicates, predEval) =
   ( sim
-      { stateStack = q : stateStack
+      { stateStack = q <| stateStack
       , trace = newTrace
       , logTrace = newLog
       }
@@ -162,7 +166,7 @@ step sim@EnvironmentSimulation{..} (predicates, predEval) =
 
   where
     (q, output) =
-      simStep strategy (head stateStack) (predEval . inputName strategy)
+      simStep strategy (NonEmpty.head stateStack) (predEval . inputName strategy)
 
     eval =
       [ outputName strategy o
@@ -200,9 +204,8 @@ rewind sim@EnvironmentSimulation{..} =
   sim
     { stateStack =
         case stateStack of
-          []     -> assert False undefined -- There is always an initial state
-          [init] -> [init]
-          _:sr   -> sr
+          init :| []   -> init :| []
+          _    :| s:sr -> s :| sr
     , trace = FTC.rewind trace
     , logTrace =
         case logTrace of

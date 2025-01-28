@@ -371,7 +371,7 @@ errCircularDep
 
 errCircularDep xs pos =
   let
-    m = foldl max (length $ fst $ head xs) $ map (length . fst) xs
+    m = maximum $ map (length . fst) xs
     msg =
       "detected circular dependencies between:" ++
       concatMap
@@ -397,7 +397,7 @@ errCircularImp
 
 errCircularImp xs pos =
   let
-    m = foldl max (length $ fst $ head xs) $ map (length . fst) xs
+    m = maximum $ map (length . fst) xs
     msg =
       "detected circular imports:" ++
       concatMap

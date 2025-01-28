@@ -20,9 +20,8 @@ module Main
 
 import EncodingUtils (initEncoding)
 
-import Data.Semigroup ((<>))
+import Data.String (fromString)
 import Options.Applicative
-import Options.Applicative.Help.Pretty
 
 import PrintUtils (Color(..), ColorIntensity(..), cPutOutLn)
 
@@ -87,7 +86,7 @@ configParserInfo = info (configParser <**> helper)
   (  fullDesc
   <> header "tslcoregen - generates a core for a unrealizable specification"
   <> progDesc "Generate an unrealizability core for FILE using EXE"
-  <> footerDoc (Just $ text verbosityMessage)
+  <> footerDoc (Just $ fromString verbosityMessage)
   )
 
 -----------------------------------------------------------------------------

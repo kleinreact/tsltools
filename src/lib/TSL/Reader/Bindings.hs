@@ -38,7 +38,9 @@ import Data.Graph (buildG, scc)
 
 import Data.Tree (flatten)
 
-import Control.Monad.State (StateT(..), execStateT, get, put, when)
+import Control.Monad (when)
+
+import Control.Monad.State (StateT(..), execStateT, get, put)
 
 import Control.Exception (assert)
 

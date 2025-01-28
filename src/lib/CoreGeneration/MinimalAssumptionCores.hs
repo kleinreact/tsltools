@@ -17,7 +17,6 @@ module CoreGeneration.MinimalAssumptionCores
   ) where
 
 -------------------------------------------------------------------------------
-import Data.List as List (splitAt)
 
 import CoreGeneration.CoreUtilities
   ( Context(..)

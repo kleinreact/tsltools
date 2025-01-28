@@ -32,6 +32,8 @@ import Data.Functor.Identity (Identity)
 
 import Data.Maybe (catMaybes)
 
+import Data.List.NonEmpty (NonEmpty(..))
+
 import Control.Monad (void)
 
 import Text.Parsec
@@ -152,14 +154,15 @@ assignmentParser = do
 
     reminderParser x args pos = do
       rOp "="
-      es <- many1 exprParser
+      e <- exprParser
+      er <- many exprParser
       rOp ";"
       return $ Assignment
         Binding
           { bIdent = x
           , bArgs = args
           , bPos = pos
-          , bVal = GuardedBinding es
+          , bVal = GuardedBinding (e :| er)
           }
 
 -----------------------------------------------------------------------------

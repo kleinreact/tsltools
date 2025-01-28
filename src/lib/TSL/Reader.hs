@@ -60,7 +60,9 @@ import Control.Exception (assert)
 
 import Data.Function (on)
 
-import Data.List (groupBy, sortBy)
+import Data.List (sortBy, find)
+
+import qualified Data.List.NonEmpty as NonEmpty (toList, groupBy, head)
 
 import Data.Maybe (fromJust, fromMaybe)
 
@@ -161,12 +163,9 @@ resolveImports specPath ls str = case parse str of
           Nothing ->
             return $ genericError $
             "Import path resolution failed: import path was: \"" ++ path ++ "\" in \"" ++ importer ++ "\""
-          Just path' ->
-            if any ((== path') . fst) ls
-            then
-              let (x, p) : _ = filter ((== path') . fst) ls
-              in return $ errCircularImp [(path', p1), (x, p)] p
-            else do
+          Just path' -> case find ((== path') . fst) ls of
+            Just (x, p) -> return $ errCircularImp [(path', p1), (x, p)] p
+            Nothing -> do
               exists <- doesFileExist path'
               if not exists
               then
@@ -207,7 +206,7 @@ resolveImports specPath ls str = case parse str of
     importer = fromMaybe "STDIN" specPath
 
     updE path = \case
-      GuardedBinding xs    -> GuardedBinding $ map (upd path) xs
+      GuardedBinding xs    -> GuardedBinding $ upd path <$> xs
       PatternBinding x y   -> PatternBinding (upd path x) (upd path y)
       SetBinding x         -> SetBinding $ upd path x
       RangeBinding x g y h -> RangeBinding (upd path x) g (upd path y) h
@@ -257,8 +256,8 @@ symtable RD.Specification{..} =
     -- and inputs it can be computed from
     oa =
       IM.fromList
-      $ map (\x -> (fst $ head x, map snd x))
-      $ groupBy ((==) `on` fst)
+      $ map (\x -> (fst $ NonEmpty.head x, map snd $ NonEmpty.toList x))
+      $ NonEmpty.groupBy ((==) `on` fst)
       $ sortBy (compare `on` fst)
       $ toList
       $ foldl extractOutputAssignments empty es
@@ -303,7 +302,7 @@ symtable RD.Specification{..} =
 
   where
     getExprs = \case
-      GuardedBinding xs    -> xs
+      GuardedBinding xs    -> NonEmpty.toList xs
       PatternBinding x y   -> [x,y]
       SetBinding x         -> [x]
       RangeBinding x _ y _ -> [x,y]

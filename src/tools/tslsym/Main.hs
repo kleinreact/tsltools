@@ -27,6 +27,12 @@ import TSL (Specification(..), toCSV)
 
 import Config (Configuration(..), parseArguments)
 
+import Data.List.NonEmpty (NonEmpty(..))
+
+import qualified Data.List.NonEmpty as NonEmpty (head, toList, zipWith)
+
+import qualified Data.Functor as Functor (unzip)
+
 import Data.List (isInfixOf, partition)
 
 import Control.Monad (when)
@@ -45,13 +51,15 @@ main = do
   let
     table = toCSV $ symboltable spec
     (is,ts') = partition (isInfixOf "internal") es
-    (h':es) = lines table
+    (h', es) = case lines table of
+      [] -> error "empty symbol table"
+      h':es -> (h', es)
 
     (h, ts, upd)
       | fullTable =
           (h', ts', if noPositions then rmSLast else id)
       | otherwise =
-          let (h'':ts'') = rmSpaces [] (h':ts')
+          let h'' :| ts'' = rmSpaces [] (h' :| ts')
           in (h'',ts'', if noPositions then rmLast . rmLast else rmLast)
 
   header $ upd h
@@ -65,35 +73,43 @@ main = do
   where
     rmSpaces a xs =
       let
-        (is,rs) = unzip $ map (break (== ';')) xs
-        n = minimum $ map (length . takeWhile (== ' ') . reverse) is
-      in case head rs of
+        (is, rs) = Functor.unzip $ break (== ';') <$> xs
+        is'' = NonEmpty.toList is
+        n = minimum $ map (length . takeWhile (== ' ') . reverse) is''
+      in case NonEmpty.head rs of
         "" ->
           let
             is' =
               if n > 0
-              then map (take (length (head is) - n + 1)) is
+              then take (length (NonEmpty.head is) - n + 1) <$> is
               else is
 
           in
-            foldl (zipWith (\x y -> y ++ ';' : x)) is' a
+            foldl (NonEmpty.zipWith (\x y -> y ++ ';' : x)) is' a
         _  ->
           let
             is' =
               if n > 1
-              then map (take (length (head is) - n + 1)) is
+              then take (length (NonEmpty.head is) - n + 1) <$> is
               else is
+            rmSemi (';':zs) = zs
+            rmSemi zs = zs
           in
-            rmSpaces (is' : a) $ map (\(';':zs) -> zs) rs
+            rmSpaces (is' : a) $ rmSemi <$> rs
 
-    rmLast xs =
-      let (_, ';':_:xr) = break (== ';') $ reverse xs
-      in reverse xr
+    rmLast xs = reverse
+      $ case break (== ';') $ reverse xs of
+          (_, ';':_:xr) -> xr
+          (_, _       ) -> []
 
     rmSLast xs =
       let
-        (l, ';':xr) = break (== ';') $ reverse xs
-        (_, ';':yr) = break (== ';') xr
+        (l, xr) = case break (== ';') $ reverse xs of
+          (l, ';':xr) -> (l, xr)
+          (l, _     ) -> (l, [])
+        yr = case break (== ';') xr of
+          (_, ';':yr) -> yr
+          (_, _     ) -> []
       in
         reverse $ l ++ ';' : yr
 

@@ -49,6 +49,8 @@ import Data.Array (bounds)
 
 import Data.Array.ST (STArray, newArray, readArray, writeArray)
 
+import qualified Data.List.NonEmpty as NonEmpty (toList)
+
 import Control.Monad.ST (ST, runST)
 
 import Control.Monad (foldM, liftM2, liftM3)
@@ -197,7 +199,7 @@ evalExpression s a e =
         VEmpty ->
           assert (null $ stArgs s i) $
           case stBindings s i of
-            Just (GuardedBinding xs) -> vFirst xs
+            Just (GuardedBinding xs) -> vFirst $ NonEmpty.toList xs
             _                        -> assert False undefined
         v      -> return v
     BaseFn {}  -> evalFnApplication [] e
@@ -230,7 +232,7 @@ evalExpression s a e =
                        zip as $ z':xs
               mapM_ (uncurry (writeArray a)) zs
               case stBindings s i of
-                Just (GuardedBinding es) -> vFirst es
+                Just (GuardedBinding es) -> vFirst $ NonEmpty.toList es
                 _                        -> assert False undefined
             _         -> assert False undefined
           _         -> assert False undefined

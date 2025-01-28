@@ -39,8 +39,9 @@ import TSL.Aiger
 import qualified TSL.Aiger as Circuit
   ( Wire(..)
   , inputs
-  , outputs
   )
+
+import qualified Data.List.NonEmpty as NonEmpty (toList)
 
 -----------------------------------------------------------------------------
 
@@ -64,8 +65,8 @@ implement _ _ cfm@CFM{..} =
     , let
         createArgList = map ("s_" ++)
       in
-        "function control" ++ 
-        entryParamDestructor 0 (createArgList (map (inputName) inputs)) ++ 
+        "function control" ++
+        entryParamDestructor 0 (createArgList (map (inputName) inputs)) ++
         "{"
     , ""
     , indent 4 "// Cells"
@@ -103,7 +104,7 @@ implement _ _ cfm@CFM{..} =
       indent 4 ("let o_" ++ outputName o ++ " = ") ++
       (outputName o) ++ "Switch" ++
       prTuple (map (\(w,x) -> "[" ++ prWire cfm w ++ ", innerCircuit[" ++ show x ++ "]]")
-           $ outputSwitch o) ++ ";\n\n"
+           $ NonEmpty.toList $ outputSwitch o) ++ ";\n\n"
 
 -----------------------------------------------------------------------------
 
@@ -163,8 +164,8 @@ strToJSElem = \case
   -- Notes
   note                 -> Note note
 
-implementWebAudio :: [String] -> [String] -> String 
-implementWebAudio inputs outputs = 
+implementWebAudio :: [String] -> [String] -> String
+implementWebAudio inputs outputs =
   unlines [ "// Implemented Functions"
           , functionImpl
           , ""
@@ -178,7 +179,7 @@ implementWebAudio inputs outputs =
           , ""
           , postlude
           ]
-    where 
+    where
       functionImpl :: String
       functionImpl = unlines
         ["function p_play(input){return input;}"
@@ -213,7 +214,7 @@ implementWebAudio inputs outputs =
         ,"function f_getWaveformVal(node){return waveformControl.value}"
         ,"function f_getArpType(node){return arpeggiatorStyleControl.value}"
         ]
-  
+
       keyboardElem :: JSElem
       keyboardElem = Keyboard "keyboardNode"
 
@@ -224,7 +225,7 @@ implementWebAudio inputs outputs =
       eventableInputs = filter eventable inputSignals
 
       outputStr :: String
-      outputStr = prList $ 
+      outputStr = prList $
                   map (varName . strToJSElem) outputs
 
       updateVarsToUI :: String
@@ -245,8 +246,8 @@ implementWebAudio inputs outputs =
       reactiveNotes = filter isNote eventableInputs
 
       defineNotes :: JSElem -> String
-      defineNotes (Note note) = 
-        "var " ++ note ++ 
+      defineNotes (Note note) =
+        "var " ++ note ++
         " = document.getElementById(" ++
         show note ++
         ");\n"
@@ -254,15 +255,15 @@ implementWebAudio inputs outputs =
 
       signalUpdateCode :: JSElem -> String
       signalUpdateCode NullElem = saveOutput 0 NullElem
-      signalUpdateCode (Keyboard _) = 
+      signalUpdateCode (Keyboard _) =
         "for(let i=0; i<unselectedNotes.length;i++){\n" ++
-        indent 4 "unselectedNotes[i].addEventListener(\"" ++ 
+        indent 4 "unselectedNotes[i].addEventListener(\"" ++
         actionName keyboardElem ++ "\", " ++
         "_ => {\n" ++
         saveOutput 8 keyboardElem ++
         indent 4 "\n});" ++
         "};\n"
-      signalUpdateCode var = 
+      signalUpdateCode var =
         varName var ++
         ".addEventListener(\"" ++
         actionName var ++ "\", " ++
@@ -271,12 +272,12 @@ implementWebAudio inputs outputs =
         "\n});"
 
       saveOutput :: Int -> JSElem -> String
-      saveOutput numIndents var = 
-                      indent numIndents (outputStr ++   
-                      " = control({\n") ++ 
-                      dropLastTwo 
-                        (concatMap 
-                        (indent (numIndents + 4) . pipeSignal) 
+      saveOutput numIndents var =
+                      indent numIndents (outputStr ++
+                      " = control({\n") ++
+                      dropLastTwo
+                        (concatMap
+                        (indent (numIndents + 4) . pipeSignal)
                         inputSignals) ++
                       "});\n" ++
                       indent numIndents updateVarsToUI
@@ -296,36 +297,36 @@ implementWebAudio inputs outputs =
 
               signalShown :: String
               signalShown = "s_" ++ varName x ++ " : "
-      
+
           dropLastTwo :: String -> String
           dropLastTwo str = take (length str - 2) str
 
       makeMidiTriggers :: [JSElem] -> String
       makeMidiTriggers [] = ""
       makeMidiTriggers notes =
-        triggerNoteSetInit ++ 
+        triggerNoteSetInit ++
         fxnHeader ++
         indent 4 "const noteSignal = 's_note' + note;\n" ++
         indent 4 "const noteVelocity = velocity;\n" ++
-        indent 4 inputTemplate ++ 
+        indent 4 inputTemplate ++
         indent 4 "inputTemplate[noteSignal] = true;\n" ++
-        indent 4 "if(triggerNotes.has(noteSignal)){\n" ++ 
+        indent 4 "if(triggerNotes.has(noteSignal)){\n" ++
         indent 8 (outputStr ++ " = control(inputTemplate);\n") ++
         indent 8 "updateVarsToUI();\n" ++
         indent 4 "}\n" ++
         "}"
-        where 
+        where
           triggerNoteSetInit = "var triggerNotes = new Set(" ++
-                               prList (map (surroundQuotes . varName) notes) ++ 
+                               prList (map (surroundQuotes . varName) notes) ++
                                ");\n"
             where surroundQuotes str = "\"s_" ++ str ++ "\""
           fxnHeader = "function reactiveUpdateOnMIDI" ++
                       "(note, velocity){\n"
-          inputTemplate = 
+          inputTemplate =
             "const inputTemplate = " ++
             prDictFormatted 8 (map inSigInit inputSignals) ++
             ";\n"
-            where 
+            where
               inSigInit :: JSElem -> String
               inSigInit NullElem = ""
               inSigInit x = case eventable x of
@@ -343,7 +344,7 @@ implementWebAudio inputs outputs =
 
 prSwitchImpl
   :: CFM -> Output -> String
---it can only have Pairs as inputs, cant handle anything else, 
+--it can only have Pairs as inputs, cant handle anything else,
 prSwitchImpl CFM{..} o =
   let
     xs = outputSwitch o
@@ -352,13 +353,13 @@ prSwitchImpl CFM{..} o =
     unlines
       [ "function "++ outputName o ++ "Switch"
       , prMultiLineTuple 4 (map (\i -> "p" ++ show i)[0,1..n-1])++ "{"
-      , concatMap(\j -> 
+      , concatMap(\j ->
             indent 4 "const r"++show j++
             " = p"++show j++"[1] ?"++
             " p"++show j++"[0]"++
             " : " ++
             (if n == j + 2 then "p" else "r")++
-            show (j+1)++ 
+            show (j+1)++
             (if n == j + 2 then "[0]; \n" else ";\n")
             )
             [n-2,n-3..0] ++ indent 4 "return r0;"
@@ -377,7 +378,7 @@ prCircuitImpl Circuit{..} =
     , concatMap latchVarInit latches
     , "function controlCircuit"
     , prMultiLineTuple 4
-        (map (("cin" ++) . show) inputs) ++ 
+        (map (("cin" ++) . show) inputs) ++
     "{"
     , ""
     , indent 4 "// Latches"
@@ -391,7 +392,7 @@ prCircuitImpl Circuit{..} =
 
   where
     prWire' x
-      | Circuit.wire x <= length inputs = 
+      | Circuit.wire x <= length inputs =
         let minusedOne = Circuit.wire x - 1
         in
           case minusedOne >= 0 of
@@ -399,7 +400,7 @@ prCircuitImpl Circuit{..} =
             -- False -> "cin0"
             False -> "cinNeg" ++ (show $ abs $ minusedOne)
       | otherwise                      = 'w' : show x
-    
+
     latchVarInit :: Latch -> String
     latchVarInit l =
       let
@@ -409,9 +410,9 @@ prCircuitImpl Circuit{..} =
           Positive w -> w
       in
         prWire' unwrapped ++ " = false;\n"
-    
+
     globalLatchVar :: Latch -> String
-    globalLatchVar l = 
+    globalLatchVar l =
       let
         iw = latchInput l :: Invertible Circuit.Wire
         ow = latchOutput l :: Circuit.Wire
@@ -419,7 +420,7 @@ prCircuitImpl Circuit{..} =
         unwrapped = case iw of
           Negative w -> w
           Positive w -> w
-        
+
         initVar :: Circuit.Wire -> String
         initVar wire = "var " ++ prWire' wire ++ " = false;\n"
       in initVar unwrapped ++ initVar ow
@@ -463,16 +464,16 @@ prCircuitImpl Circuit{..} =
       let
         (os, xs) =
           unzip $ map (\o -> polarized o 'o' $ outputWire o) outputs
-        
+
         addLet :: String -> String
         addLet base = case base of
           ""    -> ""
           base' -> indent 4 $ "const " ++ base'' ++ ";\n"
             where base'' = dropWhile (==' ') $
                            takeWhile (/='\n') base'
-          
+
       in
-        (concatMap addLet xs) ++ 
+        (concatMap addLet xs) ++
         "\n" ++
         prReturn os
 
@@ -493,7 +494,7 @@ prDictFormatted numIndents = \case
   []   -> "{}"
   [x]  -> "{" ++ x ++ "}"
   x:xr -> "{\n" ++ indent numIndents x ++ ",\n" ++
-          concatMap joinNext xr ++ 
+          concatMap joinNext xr ++
           indent (numIndents - 4) "}"
     where joinNext y = indent numIndents y ++ ",\n"
 
@@ -513,9 +514,9 @@ prReturn
 prReturn = \case
   []   -> indent 4 "return [];"
   [x]  -> indent 4 "return [" ++ x ++ "];"
-  x:xs -> indent 4 "return [ " ++ 
-          x ++ 
-         concatMap addLine xs ++ 
+  x:xs -> indent 4 "return [ " ++
+          x ++
+         concatMap addLine xs ++
          "];"
     where addLine = (('\n':indent 11 ", ") ++ )
 

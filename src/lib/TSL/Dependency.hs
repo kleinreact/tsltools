@@ -46,9 +46,9 @@ import Data.Set as Set (elems, fromList, union)
 data DependencyRepresentation =
   DependencyRepresentation {
     -- | all assumptions in ascending lexical order
-    assumptions :: [Formula String]
+    drAssumptions :: [Formula String]
     -- | all guarantees in ascending lexical order
-  , guarantees :: [Formula String]
+  , drGuarantees :: [Formula String]
     -- | mapping from guarantees to their required assumptions
   , g2as :: Formula String -> [Formula String]
   }
@@ -58,13 +58,13 @@ instance Show DependencyRepresentation where
     unlines $
       ["assumptions:"]
       ++
-      showFormulas assumptions
+      showFormulas drAssumptions
       ++
       [""]
       ++
       ["guarantees:"]
       ++
-      showFormulas guarantees
+      showFormulas drGuarantees
       ++
       [""]
       ++
@@ -78,7 +78,7 @@ instance Show DependencyRepresentation where
           ++
           show (map aIdx (g2as g))
         )
-        (zip [0..] guarantees)
+        (zip [0..] drGuarantees)
 
     where
       showFormulas formulas =
@@ -86,7 +86,7 @@ instance Show DependencyRepresentation where
           (\(i,f) -> (show (i::Int)) ++ ": \"" ++ (tslFormula id f) ++ "\"")
           (zip [0..] formulas)
 
-      aIdx a = fromJust $ List.elemIndex a assumptions
+      aIdx a = fromJust $ List.elemIndex a drAssumptions
 
 -----------------------------------------------------------------------------
 
@@ -100,25 +100,25 @@ formulas2dependencies
 formulas2dependencies formulas =
   let
     assumptionss = fst <$> formulas
-    assumptions = elems $ Set.fromList $ concat assumptionss
-    aIdx a = fromJust $ List.elemIndex a assumptions
+    drAssumptions = elems $ Set.fromList $ concat assumptionss
+    aIdx a = fromJust $ List.elemIndex a drAssumptions
 
     gMap =
       Map.fromListWith Set.union $
-        concatMap (\(assumptions, guarantees) ->
-            let aIdxSet = Set.fromList $ map aIdx assumptions in
-            map (,aIdxSet) guarantees
+        concatMap (\(as, gs) ->
+            let aIdxSet = Set.fromList $ map aIdx as in
+            map (,aIdxSet) gs
           )
           formulas
 
     g2as g =
       let aIdxSet = gMap ! g
       in
-      map (assumptions !!) $ elems aIdxSet
+      map (drAssumptions !!) $ elems aIdxSet
 
   in
   DependencyRepresentation
-  { guarantees = keys gMap
+  { drGuarantees = keys gMap
   , ..
   }
 

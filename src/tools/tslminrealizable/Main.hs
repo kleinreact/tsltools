@@ -20,9 +20,9 @@ module Main
 
 import EncodingUtils (initEncoding)
 
-import Data.Semigroup ((<>))
+import Data.String (fromString)
+
 import Options.Applicative
-import Options.Applicative.Help.Pretty
 
 import PrintUtils (Color(..), ColorIntensity(..), cPutOutLn)
 
@@ -95,7 +95,7 @@ configParserInfo :: ParserInfo Configuration
 configParserInfo = info (configParser <**> helper)
   (  fullDesc
   <> header "tslminrealizable - generates the specification that is realizable with a minimal amount of assumptions"
-  <> footerDoc (Just $ text verbosityMessage)
+  <> footerDoc (Just $ fromString verbosityMessage)
   )
 
 

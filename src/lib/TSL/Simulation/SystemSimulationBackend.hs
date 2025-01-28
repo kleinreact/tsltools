@@ -27,15 +27,15 @@ module TSL.Simulation.SystemSimulationBackend
 
 -------------------------------------------------------------------------------
 
-import Control.Exception (assert)
-
 import TSL.Specification (Specification(..))
 
 import TSL.SymbolTable (stName)
 
 import Data.Maybe (fromJust)
 
-import Data.List (lookup)
+import Data.List.NonEmpty (NonEmpty(..), (<|))
+
+import qualified Data.List.NonEmpty as NonEmpty (head)
 
 import Data.Set as Set
   ( difference
@@ -104,7 +104,7 @@ data SystemSimulation =
     , specification :: Specification
     -- | The history of states that have been passed through as stack, the
     -- topmost element is the current state.
-    , stateStack :: [State]
+    , stateStack :: NonEmpty State
     -- | The trace of updates and predicate evaluation (this trace is the
     -- "trace" that is usually meant in a model checking context)
     , trace :: FiniteTrace String
@@ -179,11 +179,11 @@ step
   :: SystemSimulation -> SystemOption
   -> (SystemSimulation, [(PredicateTerm String, Bool)])
 
-step sim@SystemSimulation {..} updates =
+step sim@SystemSimulation{..} updates =
   let
     input i = inputName counterStrategy i `elem` updates
 
-    (q, output) = simStep counterStrategy (head stateStack) input
+    (q, output) = simStep counterStrategy (NonEmpty.head stateStack) input
 
     eval =
       [ (outputName counterStrategy o, output o)
@@ -199,7 +199,7 @@ step sim@SystemSimulation {..} updates =
     newLog = (updates, eval) : logTrace
   in
     ( sim
-        { stateStack = q : stateStack
+        { stateStack = q <| stateStack
         , trace = newTrace
         , logTrace = newLog
         }
@@ -220,9 +220,8 @@ rewind sim@SystemSimulation{..} =
   sim
     { stateStack =
         case stateStack of
-          []     -> assert False undefined -- There is always an initial state
-          [init] -> [init]
-          _:sr   -> sr
+          init :| []   -> init :| []
+          _    :| s:sr -> s :| sr
     , trace = FTC.rewind trace
     , logTrace =
         case logTrace of

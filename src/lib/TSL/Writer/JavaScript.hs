@@ -33,8 +33,9 @@ import TSL.Aiger
 import qualified TSL.Aiger as Circuit
   ( Wire(..)
   , inputs
-  , outputs
   )
+
+import qualified Data.List.NonEmpty as NonEmpty (toList)
 
 -----------------------------------------------------------------------------
 
@@ -62,8 +63,8 @@ implement mName fName cfm@CFM{..} =
     , let
         createArgList = map ("s_" ++)
       in
-        "function control" ++ 
-        prMultiLineTuple 0 (createArgList (map (inputName) inputs)) ++ 
+        "function control" ++
+        prMultiLineTuple 0 (createArgList (map (inputName) inputs)) ++
         "{"
     , ""
     , indent 4 "// Terms"
@@ -96,13 +97,13 @@ implement mName fName cfm@CFM{..} =
       indent 4 ("let o_" ++ outputName o ++ " = ") ++
       (outputName o) ++ "Switch" ++
       prTuple (map (\(w,x) -> "[" ++ prWire cfm w ++ ", innerCircuit[" ++ show x ++ "]]")
-           $ outputSwitch o) ++ ";\n\n"
+           $ NonEmpty.toList $ outputSwitch o) ++ ";\n\n"
 
 -----------------------------------------------------------------------------
 
 prSwitchImpl
   :: CFM -> Output -> String
---it can only have Pairs as inputs, cant handle anything else, 
+--it can only have Pairs as inputs, cant handle anything else,
 prSwitchImpl CFM{..} o =
   let
     xs = outputSwitch o
@@ -111,13 +112,13 @@ prSwitchImpl CFM{..} o =
     unlines
       [ "function "++ outputName o ++ "Switch"
       , prMultiLineTuple 4 (map (\i -> "p" ++ show i)[0,1..n-1])++ "{"
-      , concatMap(\j -> 
+      , concatMap(\j ->
             indent 4 "const r"++show j++
             " = p"++show j++"[1] ?"++
             " p"++show j++"[0]"++
             " : " ++
             (if n == j + 2 then "p" else "r")++
-            show (j+1)++ 
+            show (j+1)++
             (if n == j + 2 then "[0]; \n" else ";\n")
             )
             [n-2,n-3..0] ++ indent 4 "return r0;"
@@ -136,7 +137,7 @@ prCircuitImpl Circuit{..} =
     , concatMap latchVarInit latches
     , "function controlCircuit"
     , prMultiLineTuple 4
-        (map (("cin" ++) . show) inputs) ++ 
+        (map (("cin" ++) . show) inputs) ++
     "{"
     ,""
     , concatMap prLatchJS latches
@@ -150,7 +151,7 @@ prCircuitImpl Circuit{..} =
   where
     -- TODO: No idea if this is correct
     prWire' x
-      | Circuit.wire x <= length inputs = 
+      | Circuit.wire x <= length inputs =
         let minusedOne = Circuit.wire x - 1
         in
           case minusedOne >= 0 of
@@ -158,7 +159,7 @@ prCircuitImpl Circuit{..} =
             False -> "cin0"
             -- False -> "cinNeg" ++ (show $ abs $ minusedOne)
       | otherwise                      = 'w' : show x
-    
+
     latchVarInit :: Latch -> String
     latchVarInit l =
       let
@@ -169,9 +170,9 @@ prCircuitImpl Circuit{..} =
           Positive w -> w
       in
         prWire' unwrapped ++ " = false;\n"
-    
+
     globalLatchVar :: Latch -> String
-    globalLatchVar l = 
+    globalLatchVar l =
       let
         iw = latchInput l :: Invertible Circuit.Wire
         ow = latchOutput l :: Circuit.Wire
@@ -179,7 +180,7 @@ prCircuitImpl Circuit{..} =
         unwrapped = case iw of
           Negative w -> w
           Positive w -> w
-        
+
         initVar :: Circuit.Wire -> String
         initVar wire = "var " ++ prWire' wire ++ ";\n"
       in initVar unwrapped ++ initVar ow
@@ -236,16 +237,16 @@ prCircuitImpl Circuit{..} =
       let
         (os, xs) =
           unzip $ map (\o -> polarized o 'o' $ outputWire o) outputs
-        
+
         addLet :: String -> String
         addLet base = case base of
           ""    -> ""
           base' -> indent 4 $ "const " ++ base'' ++ ";\n"
             where base'' = dropWhile (==' ') $
                            takeWhile (/='\n') base'
-          
+
       in
-        (concatMap addLet xs) ++ 
+        (concatMap addLet xs) ++
         "\n" ++
         prReturn os
 
@@ -266,9 +267,9 @@ prReturn
 prReturn = \case
   []   -> indent 4 "return [];"
   [x]  -> indent 4 "return [" ++ x ++ "];"
-  x:xs -> indent 4 "return [ " ++ 
-          x ++ 
-         concatMap addLine xs ++ 
+  x:xs -> indent 4 "return [ " ++
+          x ++
+         concatMap addLine xs ++
          "];"
     where addLine = (('\n':indent 11 ", ") ++ )
 

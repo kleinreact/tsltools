@@ -41,13 +41,15 @@ module TSL.CFM
 
 import GHC.Generics (Generic)
 
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, mapMaybe, catMaybes)
 
 import Data.Either (partitionEithers)
 
-import Control.Arrow ((***))
-
 import Data.List (find, groupBy, sortBy, transpose)
+
+import Data.List.NonEmpty (NonEmpty(..))
+
+import qualified Data.List.NonEmpty as NonEmpty (toList, groupBy, head)
 
 import Data.Function (on)
 
@@ -218,7 +220,7 @@ data CFM =
 
     , -- | output switches to select the signal selected by the
       -- control circuit
-      outputSwitch :: Output -> [(Wire, Circuit.Output)]
+      outputSwitch :: Output -> NonEmpty (Wire, Circuit.Output)
 
     , -- | the unique source of a wire, which is either a direct input
       -- or the output of a term
@@ -318,9 +320,9 @@ symbolTable cfm@CFM{..} =
       [ ( outputId o
         , IdRec
             { idName     = outputName o
-            , idType     = t2et [wireType $ fst $ head $ outputSwitch o]
+            , idType     = t2et [wireType $ fst $ NonEmpty.head $ outputSwitch o]
             , idKind     = ST.Output
-            , idDeps     = transitive empty empty $ map fst $ outputSwitch o
+            , idDeps     = transitive empty empty $ map fst $ NonEmpty.toList $ outputSwitch o
             , idArgs     = []
             , idPos      = Nothing
             , idBindings = Nothing
@@ -404,8 +406,8 @@ symbolTable cfm@CFM{..} =
         (\x y -> fromMaybe y $ IM.lookup y x)
       $ IM.fromList
       $ concatMap
-          ((\xs -> map (, head xs) xs) . map (sourceId . Right))
-      $ groupBy ((==) `on` termName)
+          ((\xs -> map (, NonEmpty.head xs) $ NonEmpty.toList xs) . (sourceId . Right <$>))
+      $ NonEmpty.groupBy ((==) `on` termName)
       $ sortBy (compare `on` termName)
       $ filter ((/= "false") . termName)
       $ filter ((/= "true") . termName)
@@ -500,8 +502,15 @@ fromCircuit circuit = do
     -- separate pure signals from function applications
     cs = partitionEithers $ map classify ts
 
-    -- list of all output signal names
-    os = toList $ fromList $ map (fst . fst) ots
+    -- list of all output signal names and assigned wires
+    (os, zs) = unzip
+       $ map (\xs -> ( fst $ fst $ NonEmpty.head xs
+                     , fmap (\(x, y) -> (tm $ snd x, y)) xs
+                     )
+             )
+       $ NonEmpty.groupBy ((==) `on` (fst . fst))
+       $ sortBy (compare `on` (fst . fst))
+         ots
 
     -- names of the input signals
     is = fst cs -- difference (fromList $ fst cs) os
@@ -512,15 +521,16 @@ fromCircuit circuit = do
     -- assgins a wire to each function term
     tm = Wire . ((Map.fromList $ zip ts [0,1..length ts - 1]) Map.!)
 
-    zs = map (\o -> map (\(x,y) -> (tm $ snd x,y))
-                   $ filter ((== o) . fst . fst) ots) os
-
     -- identify the looped signals
     loops =
       -- extract the input / output pairs from the grouped elements
-      map ((head *** head) . partitionEithers . map snd)
-      -- filter the signals that appear twice
-      $ filter ((== 2) . length)
+        catMaybes
+      $ map
+          (\xs -> case xs of
+             [(_, Left a), (_, Right b)] -> Just (a, b)
+             [(_, Right b), (_, Left a)] -> Just (a, b)
+             _                           -> Nothing
+          )
       -- group on the same signal name
       $ groupBy ((==) `on` fst)
       -- sort the list according to the signal names
@@ -674,9 +684,9 @@ wireConnections cfm@CFM{..} =
       -- create an array out of the mapping
       $ array (0, length wires - 1)
       -- rearrange the tuple layout to reduce redundency
-      $ map (\xs -> (fst $ head xs, map snd xs))
+      $ map (\xs -> (fst $ NonEmpty.head xs, map snd $ NonEmpty.toList xs))
       -- group entries with the same wire togehter
-      $ groupBy ((==) `on` fst)
+      $ NonEmpty.groupBy ((==) `on` fst)
       -- sort the entries on equal wires
       $ sortBy (compare `on` fst)
       -- collect the input wires of all terms
@@ -695,7 +705,7 @@ wireConnections cfm@CFM{..} =
         -- collect the input wires of all output switches
         [ (wire w, SwitchTarget o)
         | o <- outputs
-        , (w, _) <- outputSwitch o
+        , (w, _) <- NonEmpty.toList $ outputSwitch o
         ]
 
     wSA =
@@ -744,7 +754,7 @@ inferTypes cfm@CFM{..} = do
             rmDouble
           $ mapMaybe isPoly
           $ map (wireType' . wire . inputWire) (filter (not . loopedInput) inputs) ++
-            map (wireType' . wire . fst . head . outputSwitch ) outputs ++
+            map (wireType' . wire . fst . NonEmpty.head . outputSwitch ) outputs ++
             concatMap (termType c) (constants c) ++
             concatMap (termType c) (predicates c) ++
             concatMap (termType c) (functions c)
@@ -836,9 +846,12 @@ inferTypes cfm@CFM{..} = do
         -- wrappers
         ts =
             rmDouble
-          $ map (\(Poly x) -> x)
-          $ filter (/= Boolean) xs
-
+          $ catMaybes
+          $ map
+              (\x -> case x of
+                  Poly x  -> Just x
+                  Boolean -> Nothing
+              ) xs
 
         -- create an update mapping to the compressed range
         updPoly =
@@ -858,9 +871,9 @@ inferTypes cfm@CFM{..} = do
       -- crate the mapping
       $ Map.fromList
       -- rearrange the layout to be of the right type
-      $ map (\xs -> (termName $ head xs, xs))
+      $ map (\xs -> (termName $ NonEmpty.head xs, NonEmpty.toList xs))
       -- group all entries with the same name together
-      $ groupBy ((==) `on` termName)
+      $ NonEmpty.groupBy ((==) `on` termName)
       -- sort the entries on equal names
       $ sortBy (compare `on` termName) terms
 
@@ -884,7 +897,7 @@ inferTypes cfm@CFM{..} = do
       -- change any more
       CircuitInputTarget _ -> return s
       -- all inputs to an output switch have equal type
-      SwitchTarget o -> equalType a s $ map fst $ outputSwitch o
+      SwitchTarget o -> equalType a s $ map fst $ NonEmpty.toList $ outputSwitch o
       -- output types are equal, as well as argument types
       TermTarget t -> do
         -- get the other terms using the same name
@@ -950,8 +963,8 @@ constants
   :: CFM -> [Term]
 
 constants CFM{..} =
-    map head
-  $ groupBy ((==) `on` termName)
+    map NonEmpty.head
+  $ NonEmpty.groupBy ((==) `on` termName)
   $ sortBy (compare `on` termName)
   $ filter ((/= "false") . termName)
   $ filter ((/= "true") . termName)
@@ -963,8 +976,8 @@ predicates
   :: CFM -> [Term]
 
 predicates CFM{..} =
-    map head
-  $ groupBy ((==) `on` termName)
+    map NonEmpty.head
+  $ NonEmpty.groupBy ((==) `on` termName)
   $ sortBy (compare `on` termName)
   $ filter isPredicate
   $ filter (not . null . termInputWires) terms
@@ -975,8 +988,8 @@ functions
   :: CFM -> [Term]
 
 functions CFM{..} =
-    map head
-  $ groupBy ((==) `on` termName)
+    map NonEmpty.head
+  $ NonEmpty.groupBy ((==) `on` termName)
   $ sortBy (compare `on` termName)
   $ filter (not . isPredicate)
   $ filter (not . null . termInputWires) terms

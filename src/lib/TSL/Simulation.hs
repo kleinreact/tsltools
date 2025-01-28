@@ -47,6 +47,8 @@ import TSL.Simulation.SystemSimulationBackend as SysSim
   , step
   )
 
+import Data.List.NonEmpty (NonEmpty(..))
+
 import TSL.Simulation.EnvironmentSimulationBackend as EnvSim
   ( EnvironmentSimulation(..)
   , sanitize
@@ -88,7 +90,7 @@ createSimulation aag spec =
           SystemSimulation
             { counterStrategy = naag
             , specification = spec
-            , stateStack = [const False]
+            , stateStack = const False :| []
             , trace =
                 emptyTrace
                   (assumptionsStr spec, guaranteesStr spec)
@@ -107,7 +109,7 @@ createSimulation aag spec =
               EnvironmentSimulation
                 { strategy = naag
                 , specification = spec
-                , stateStack = [const False]
+                , stateStack = const False :| []
                 , trace = emptyTrace ([], assumptionsStr spec)
                 , logTrace = []
                 }

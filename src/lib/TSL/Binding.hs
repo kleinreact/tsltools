@@ -23,10 +23,12 @@ import TSL.Expression (Expr, ExprPos)
 
 import Control.Arrow (first)
 
+import Data.List.NonEmpty (NonEmpty(..))
+
 -----------------------------------------------------------------------------
 
 data BoundExpr a =
-    GuardedBinding [Expr a]
+    GuardedBinding (NonEmpty (Expr a))
   | PatternBinding (Expr a) (Expr a)
   | SetBinding (Expr a)
   | RangeBinding (Expr a) (Int -> Int) (Expr a) (Int -> Int)
@@ -35,7 +37,7 @@ data BoundExpr a =
 
 instance Functor BoundExpr where
   fmap f = \case
-    GuardedBinding xs    -> GuardedBinding $ map (fmap f) xs
+    GuardedBinding xs    -> GuardedBinding $ fmap f <$> xs
     PatternBinding x y   -> PatternBinding (fmap f x) $ fmap f y
     SetBinding x         -> SetBinding $ fmap f x
     RangeBinding x g y h -> RangeBinding (fmap f x) g (fmap f y) h
